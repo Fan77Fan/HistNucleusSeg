@@ -10,8 +10,9 @@ as well as on the amount of data
 I am using random forest as my
 basic statistical model for the task. 
 The problem thus is framed as a pixel-wise classification task,
-trying to differentiate whether a pixel is a nuclei or not, 
-given a set of features on that pixel.
+trying to differentiate whether a pixel is a nuclei or not
+(denoted by $y$), 
+given a set of features $X$ on that pixel.
 
 **Eq.1: y = f(X)**
 
