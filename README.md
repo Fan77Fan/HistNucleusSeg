@@ -17,9 +17,9 @@ given a set of features on that pixel.
 
 The different methods we explore in this study
 focus on constructing different sets of 
-features **X**'s that will be helpful for such classification task. 
+features $X$'s that will be helpful for such classification task. 
 I use five-fold cross-validation for evaluating different methods,
-measuring model classification performance using AUC of ROC.
+measuring model classification performance using **AUC of ROC**.
 Because of the fact that very little hyper-parameter tuning 
 is needed (choice of random forest), I do not have validation
 set in this study (i.e. only a split of training/test set in
@@ -37,7 +37,7 @@ Classification results using $X_0$ as input features are:
 | baseline | 0.885 | 0.931| 0.960 | 0.951 | 0.885 | 0.923 (0.032) |
 
 A demonstration from one of the test images is shown here:
-  ![Alt text](./results/demo_baseline.png?raw=true "Title")
+  ![Alt text](./result/demo_baseline.png?raw=true "Title")
 
 #### super pixel features
 I then add features computed using super pixels to the classifier.
@@ -71,7 +71,7 @@ Classification results using $X_0 + X_sp$ as input features are
 | +superpixel | 0.890 | 0.935 | 0.961 | 0.962 | 0.898 | 0.929 (0.030) |
 
 A demonstration from one of the test images is shown here:
-  ![Alt text](./results/demo_superpixel.png?raw=true "Title")
+  ![Alt text](./result/demo_superpixel.png?raw=true "Title")
 
 
 #### low level image filtering features
@@ -88,7 +88,7 @@ Classification results using $X_0 + X_sp + X_fi$ as input features are
 | +filtering | 0.891 | 0.939 | 0.962 | 0.964 | 0.899 | 0.931 (0.031) |
 
 A demonstration from one of the test images is shown here:
-  ![Alt text](./results/demo_filtered.png?raw=true "Title")
+  ![Alt text](./result/demo_filtered.png?raw=true "Title")
 
 Note that in these baseline methods, the classification is
 performed using only features from the single pixel, 
@@ -152,11 +152,11 @@ are included. The numerical difference in results comes
 from the randomness in random forest methods.
 
 A demonstration from one of the test images is shown here:
-  ![Alt text](./results/demo_phase1.png?raw=true "Title")
+  ![Alt text](./result/demo_phase1.png?raw=true "Title")
   
-  ![Alt text](./results/demo_phase2.png?raw=true "Title")
+  ![Alt text](./result/demo_phase2.png?raw=true "Title")
   
-  ![Alt text](./results/demo_phase3.png?raw=true "Title")
+  ![Alt text](./result/demo_phase3.png?raw=true "Title")
 
 
 ### Discussion
@@ -177,10 +177,14 @@ task. [Some further reading] shows that different subtypes of
 cells/nucleus demonstrate different imaging characteristics. 
 We can see that the model is better at classifying nucleus that 
 have strong intensity values, worse otherwise. 
+The high performance variation in between folds suggests that 
+our data may have consisted several subtypes of cells.
 To solve this in the future, we could include features that 
-incoporate some description shape in a larger scale. 
+incoporate some description of shape in a larger scale. 
 We could either apply level-set methods on the current 
-classification result, or simply use convolutional neural
+classification result, and use that as input features in our
+cascaded classifiers,
+or simply use convolutional neural
 network methods.
 
 [Some further reading]:https://www.histology.leeds.ac.uk/cell/nucleus.php

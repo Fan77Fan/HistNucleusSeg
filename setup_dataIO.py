@@ -17,6 +17,9 @@ from torch.utils.data import Dataset
 
 
 class DataPartition(object):
+    '''
+    partition the dataset into folds for cross validation
+    '''
     def __init__(self, n_fold=5, val_ratio=0.25, seed=905, path=None):
         self.n_fold = n_fold
         self.val_ratio = val_ratio
@@ -56,6 +59,12 @@ class DataPartition(object):
         return idx_list
 
     def fold_idx(self, i_fold, verbose=True):
+        '''
+        output index information given a certain fold number
+        :param i_fold: the number of fold
+        :param verbose: whether to print partition information
+        :return: a dictionary describing fold index information
+        '''
         idx_dict = self.idx_list[i_fold]
         idx_train = idx_dict['train']
         idx_valid = idx_dict['valid']
@@ -88,6 +97,9 @@ class DataPartition(object):
 
 
 class ImageDataset(Dataset):
+    '''
+    extract image data using the index information generated from DataPartition.fold_idx()
+    '''
     def __init__(self, index_info, sourcedir):
         self.sourcedir = sourcedir
         self.index_info = index_info
@@ -98,17 +110,16 @@ class ImageDataset(Dataset):
         return self.dataset['image'].shape[0]
 
     def __getitem__(self, item):
-        # h5_data = h5py.File(os.path.join(self.sourcedir, filename), 'r')
+        '''
+        extract certain image from the dataset
+        :param item: index of image
+        :return: dictionary of image and its segmentation map
+        '''
         image = self.dataset['image'][item, :, :, :]
         seg = self.dataset['seg'][item, :, :, :]
         data = {'image': image, 'seg': seg, 'image_size': seg.shape[1:3]}
-        # if self.padding is True:
-        #     data_pad = self.pad_data(data, level=3)
-        # else:
-        #     data_pad = self.pad_data(data, level=1)
 
         return data
-        # return self.ToTensor(data)
 
     def extract_dataset(self):
         image_list = []
@@ -131,44 +142,4 @@ class ImageDataset(Dataset):
         gt_mat = numpy.stack(gt_list, axis=0)
         # print(gt_mat.shape)
         return {'image': image_mat, 'seg': gt_mat}
-
-    # @staticmethod
-    # def pad_data(data, level=3):
-    #     """
-    #     padding to gaurantee size of input equal to size of output in U-net
-    #     level: depth of the U-net model
-    #     """
-    #     data_pad = data.copy()
-    #     w = 2 ** (level - 1)
-    #     image, seg = data['image'], data['seg']
-    #     image_size = numpy.array(seg.shape)
-    #     p1, p2, p3 = (w - image_size % w) % w
-    #     p = ((int(p1/2), p1-int(p1/2)), (int(p2/2), p2-int(p2/2)), (int(p3/2), p3-int(p3/2)))
-    #
-    #     data_pad['image'] = numpy.pad(image, pad_width=((0, 0), ) + p, mode='constant', constant_values=0)  # C*X*Y*Z
-    #     data_pad['seg'] = numpy.pad(seg, pad_width=p, mode='constant', constant_values=0)  # X*Y*Z
-    #     data_pad['padding'] = p
-    #     return data_pad
-
-    # @staticmethod
-    # def ToTensor(data):
-    #     image, seg = data['image'], data['seg']
-    #     image = image[None, :, :, :, :]
-    #     seg = seg[None, :, :, :]
-    #     return {'image': torch.from_numpy(image).float(),
-    #             'seg': torch.from_numpy(seg).long(),
-    #             'padding': data['padding'],
-    #             'filename': data['filename'],
-    #             'image_size': data['image_size']}
-    #
-    # @staticmethod
-    # def ToNumpy(data):
-    #     image, seg, padding, filename = data['image'], data['seg'], data['padding'], data['filename']
-    #     image = image[None, :, :, :, :]
-    #     seg = seg[None, :, :, :]
-    #     return {'image': image.astype(float),
-    #             'seg': seg.astype(float),
-    #             'padding': padding,
-    #             'filename': filename}
-
 

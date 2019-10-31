@@ -8,6 +8,11 @@ import matplotlib.pyplot as plt
 
 
 def preprocess_image(image_set):
+    '''
+    use super pixel image to process the raw image and compute features
+    :param image_set: the array of images in dimension of [n_image, X, Y, channel]
+    :return: numpy array of features, array of super pixel images
+    '''
     n_image = image_set.shape[0]
     if len(image_set.shape) == 4:  # dimension: [n_image, X, Y, channel]
         image_size = image_set.shape[1:3]
@@ -43,6 +48,13 @@ def preprocess_image(image_set):
 
 
 def process_score_sp(image_set, sp_set):
+    '''
+    use super pixel to process the predicted score from a classifier
+    and use that generate new features
+    :param image_set: array of probability score in the dimension of [n_image, X, Y]
+    :param sp_set: array of super pixel images generated from function preprocess_image
+    :return: array of new features
+    '''
     assert len(image_set.shape) == 3  # dimension: [n_image, X, Y]
     n_image = image_set.shape[0]
     image_size = image_set.shape[1:]
@@ -64,6 +76,11 @@ def process_score_sp(image_set, sp_set):
 
 
 def add_image_feature(image_set):
+    '''
+    generate low level image features using some simple filterings
+    :param image_set: array of gray-scale images in the dimension of [n_image, X, Y]
+    :return: array of new features
+    '''
     assert len(image_set.shape) == 3  # dimension: [n_image, X, Y]
     n_image = image_set.shape[0]
     # n_chan = prob_set.shape[1]
@@ -73,14 +90,6 @@ def add_image_feature(image_set):
     for i in range(n_image):
         image_list = []
         m = image_set[i, :, :]
-        # image_list.append(convolve2d(m, filter(1), mode='same', boundary='wrap'))
-        # image_list.append(convolve2d(m, filter(2), mode='same', boundary='wrap'))
-        # image_list.append(convolve2d(m, filter(3), mode='same', boundary='wrap'))
-        # image_list.append(convolve2d(m, filter(4), mode='same', boundary='wrap'))
-        # image_list.append(convolve2d(m, filter(6), mode='same', boundary='wrap'))
-        # image_list.append(convolve2d(m, filter(7), mode='same', boundary='wrap'))
-        # image_list.append(convolve2d(m, filter(8), mode='same', boundary='wrap'))
-        # image_list.append(convolve2d(m, filter(9), mode='same', boundary='wrap'))
         image_list.append(convolve2d(m, filter('dx'), mode='same', boundary='wrap'))
         image_list.append(convolve2d(m, filter('dy'), mode='same', boundary='wrap'))
         # image_list.append(convolve2d(m, filter('Ldx'), mode='same', boundary='wrap'))
@@ -93,6 +102,12 @@ def add_image_feature(image_set):
 
 
 def add_contectual_feature(image_set, d):
+    '''
+    generate features by sampling around the neighourhood pixels in the given array of images
+    :param image_set: array of sampled images [n_image, X, Y]
+    :param d: node to node distance in a 3x3 matrix
+    :return: array of new features
+    '''
     assert len(image_set.shape) == 3  # dimension: [n_image, X, Y]
     n_image = image_set.shape[0]
     # n_chan = prob_set.shape[1]
