@@ -24,6 +24,8 @@ def main():
     numpy.random.seed(6372)
     window_width = 4
 
+    demo_slide = {'fold': 3, 'n': 2}  # info of slide chosen to demonstrate
+
     n_sample = 10000
     n_tree = 20
 
@@ -52,10 +54,10 @@ def main():
         Y_tra = image_dataset_tra.dataset['seg'].reshape((-1, 2))[:, 0]
         Y_tes = image_dataset_tes.dataset['seg'].reshape((-1, 2))[:, 0]
 
-        # image_size = image_dataset_tra.dataset['image'].shape[1:3]
+        image_size = image_dataset_tra.dataset['image'].shape[1:3]
 
-        # n_image_tra = image_dataset_tra.dataset['image'].shape[0]
-        # n_image_tes = image_dataset_tes.dataset['image'].shape[0]
+        n_image_tra = image_dataset_tra.dataset['image'].shape[0]
+        n_image_tes = image_dataset_tes.dataset['image'].shape[0]
 
         image_tra_mean = image_dataset_tra.dataset['image'].mean(3)
         image_tes_mean = image_dataset_tes.dataset['image'].mean(3)
@@ -94,10 +96,33 @@ def main():
         print('  AUC = {:.3f}\n'.format(metric_auc))
         results_bl['fold {:01d}'.format(i_fold+1)] = metric_auc
 
+        if i_fold == demo_slide['fold']:
+            temp_ind_tes = demo_slide['n']  # demo
+            demo_score_mat = temp_score_tes_pred.reshape((n_image_tes, ) + image_size)[temp_ind_tes, :, :]
+            demo_seg_pred = numpy.zeros_like(demo_score_mat)
+            demo_seg_pred[demo_score_mat >= 0.5] = 1
+            demo_seg = image_dataset_tes[temp_ind_tes]['seg'][:, :, 0]
+            demo_metric = roc_auc_score(y_true=demo_seg.flatten(), y_score=demo_score_mat.flatten())
+            plt.figure(figsize=(3 * window_width, 1 * window_width))
+            plt.subplot(1, 3, 1)
+            plt.imshow(image_dataset_tes[temp_ind_tes]['image'][:, :, :])
+            plt.title('image')
+            plt.axis('off')
+            plt.subplot(1, 3, 2)
+            plt.imshow(demo_seg, cmap='gray')
+            plt.title('ground truth')
+            plt.axis('off')
+            plt.subplot(1, 3, 3)
+            plt.imshow(demo_seg_pred, cmap='gray')
+            plt.title('prdiction AUC = {:.3f}'.format(demo_metric))
+            plt.axis('off')
+            plt.tight_layout()
+            plt.savefig('./result/demo_baseline.png')
+
 
         # -----------------------------------------------------------------
         print('+ super pixel features')
-        X_tra_1 = numpy.concatenate((X_tra, image_tra_pre.reshape(-1, 3), image_tra_fea.reshape(-1, 3)), axis=1)
+        X_tra_1 = numpy.concatenate((X_tra, image_tra_pre.reshape(-1, 3)), axis=1)
 
         temp_all_idx = numpy.arange(0, Y_tra.shape[0])  # select only a subset of training set for training
         temp_idx_select_pos = numpy.random.choice(temp_all_idx[Y_tra > 0], size=n_sample, replace=True)
@@ -107,7 +132,7 @@ def main():
         clf_1 = RandomForestClassifier(n_estimators=n_tree, min_samples_leaf=200, max_depth=None, max_features='auto')
         clf_1.fit(X_tra_1[idx_select_1, :], Y_tra[idx_select_1])
 
-        X_tes_1 = numpy.concatenate((X_tes, image_tes_pre.reshape(-1, 3), image_tes_fea.reshape(-1, 3)), axis=1)
+        X_tes_1 = numpy.concatenate((X_tes, image_tes_pre.reshape(-1, 3)), axis=1)
 
         print('  predicting training set.', end='')
         score_tra_pred_1 = clf_1.predict_proba(X_tra_1)[:, 1]
@@ -120,6 +145,29 @@ def main():
         metric_auc = roc_auc_score(y_true=Y_tes, y_score=temp_score_tes_pred)
         print('  AUC = {:.3f}\n'.format(metric_auc))
         results_bl_sp['fold {:01d}'.format(i_fold+1)] = metric_auc
+
+        if i_fold == demo_slide['fold']:
+            temp_ind_tes = demo_slide['n']  # demo
+            demo_score_mat = temp_score_tes_pred.reshape((n_image_tes, ) + image_size)[temp_ind_tes, :, :]
+            demo_seg_pred = numpy.zeros_like(demo_score_mat)
+            demo_seg_pred[demo_score_mat >= 0.5] = 1
+            demo_seg = image_dataset_tes[temp_ind_tes]['seg'][:, :, 0]
+            demo_metric = roc_auc_score(y_true=demo_seg.flatten(), y_score=demo_score_mat.flatten())
+            plt.figure(figsize=(3 * window_width, 1 * window_width))
+            plt.subplot(1, 3, 1)
+            plt.imshow(image_dataset_tes[temp_ind_tes]['image'][:, :, :])
+            plt.title('image')
+            plt.axis('off')
+            plt.subplot(1, 3, 2)
+            plt.imshow(demo_seg, cmap='gray')
+            plt.title('ground truth')
+            plt.axis('off')
+            plt.subplot(1, 3, 3)
+            plt.imshow(demo_seg_pred, cmap='gray')
+            plt.title('prdiction AUC = {:.3f}'.format(demo_metric))
+            plt.axis('off')
+            plt.tight_layout()
+            plt.savefig('./result/demo_superpixel.png')
 
 
         # -----------------------------------------------------------------
@@ -148,11 +196,34 @@ def main():
         print('  AUC = {:.3f}\n'.format(metric_auc))
         results_bl_sp_fi['fold {:01d}'.format(i_fold+1)] = metric_auc
 
+        if i_fold == demo_slide['fold']:
+            temp_ind_tes = demo_slide['n']  # demo
+            demo_score_mat = temp_score_tes_pred.reshape((n_image_tes, ) + image_size)[temp_ind_tes, :, :]
+            demo_seg_pred = numpy.zeros_like(demo_score_mat)
+            demo_seg_pred[demo_score_mat >= 0.5] = 1
+            demo_seg = image_dataset_tes[temp_ind_tes]['seg'][:, :, 0]
+            demo_metric = roc_auc_score(y_true=demo_seg.flatten(), y_score=demo_score_mat.flatten())
+            plt.figure(figsize=(3 * window_width, 1 * window_width))
+            plt.subplot(1, 3, 1)
+            plt.imshow(image_dataset_tes[temp_ind_tes]['image'][:, :, :])
+            plt.title('image')
+            plt.axis('off')
+            plt.subplot(1, 3, 2)
+            plt.imshow(demo_seg, cmap='gray')
+            plt.title('ground truth')
+            plt.axis('off')
+            plt.subplot(1, 3, 3)
+            plt.imshow(demo_seg_pred, cmap='gray')
+            plt.title('prdiction AUC = {:.3f}'.format(demo_metric))
+            plt.axis('off')
+            plt.tight_layout()
+            plt.savefig('./result/demo_filtered.png')
+
 
         '''
         temp_ind_tes = 2  # demo
         temp_X_tes = image_dataset_tes[temp_ind_tes]['image'].reshape((-1, 3))
-        image_size = image_dataset_tra[temp_ind_tes]['image_size']
+        image_size = image_dataset_tes[temp_ind_tes]['image_size']
 
         temp_score_tes_pred = clf.predict_proba(temp_X_tes)[:, 1]
         temp_Y_tes_pred = numpy.zeros_like(temp_score_tes_pred)
@@ -167,30 +238,9 @@ def main():
         plt.imshow(image_dataset_tes[temp_ind_tes]['seg'][:, :, 0], cmap='gray')
         plt.subplot(1, 3, 3)
         plt.imshow(temp_seg_pred, cmap='gray')
+        plt.savefig('./result/demo_')
         plt.show()
         '''
-
-        # -----------------------------------------------------------------
-        # print('phase I training with more features.')
-        #
-        # image_tra = image_dataset_tra.dataset['image']
-        # image_tra_aug = add_image_feature(image_set=image_tra)
-        # image_tra_aug = numpy.concatenate((image_tra, image_tra_aug), axis=3)
-        # n_feature = image_tra_aug.shape[3]
-        # X_tra = image_tra_aug.reshape((-1, n_feature))
-        #
-        # clf = RandomForestClassifier(n_estimators=20, min_samples_leaf=10)
-        # clf.fit(X_tra[idx_select, :], Y_tra[idx_select])
-        #
-        # image_tes = image_dataset_tes.dataset['image']
-        # image_tes_aug = add_image_feature(image_set=image_tes)
-        # image_tes_aug = numpy.concatenate((image_tes, image_tes_aug), axis=3)
-        # X_tes = image_tes_aug.reshape((-1, n_feature))
-        #
-        # print('  predicting.')
-        # score_tes_pred = clf.predict_proba(X_tes)[:, 1]
-        # metric_auc = roc_auc_score(y_true=Y_tes, y_score=score_tes_pred)
-        # print('  AUC = {:.3f}\n'.format(metric_auc))
 
     index_name = 'baseline'
     df_bl = pandas.DataFrame(results_bl, index=[index_name, ])
@@ -216,7 +266,6 @@ def main():
     print(df)
 
     df.to_csv('./result/results.csv')
-
 
 
 if __name__ == '__main__':

@@ -1,10 +1,6 @@
 import numpy
 import os
-import glob
-import time
-import nibabel
-import sys
-import h5py
+import pandas
 
 from setup_variables import data_path
 from setup_dataIO import DataPartition, ImageDataset
@@ -26,7 +22,26 @@ def main():
     numpy.random.seed(6372)
     window_width = 4
 
+    demo_slide = {'fold': 3, 'n': 2}  # info of slide chosen to demonstrate
+
+    n_sample = 10000
+    n_tree = 20
+
     dataIO = DataPartition(path=data_path, val_ratio=0)
+
+    if os.path.exists('./result/results.csv') is False:  # initialization
+        df = pandas.DataFrame(columns=['fold 1', 'fold 2', 'fold 3', 'fold 4', 'fold 5'],
+                              index=['baseline', '+superpixel', '+filtered'])
+        df.to_csv('./result/results.csv')
+
+    df = pandas.read_csv('./result/results.csv', index_col=0)
+    print('existing csv file:')
+    print(df)
+    print('')
+
+    results_1 = {'fold 1': 0, 'fold 2': 0, 'fold 3': 0, 'fold 4': 0, 'fold 5': 0}  # baseline
+    results_2 = {'fold 1': 0, 'fold 2': 0, 'fold 3': 0, 'fold 4': 0, 'fold 5': 0}  # + super pixel
+    results_3 = {'fold 1': 0, 'fold 2': 0, 'fold 3': 0, 'fold 4': 0, 'fold 5': 0}  # + some low level image features
 
     for i_fold in (0, 1, 2, 3, 4):
         part_info = dataIO.fold_idx(i_fold=i_fold, verbose=True)
@@ -53,17 +68,19 @@ def main():
 
         X_tra = image_dataset_tra.dataset['image'].reshape((-1, 3))
         X_tes = image_dataset_tes.dataset['image'].reshape((-1, 3))
+        print('')
+
 
         # -----------------------------------------------------------------
         print('phase I training.')
         X_tra_1 = numpy.concatenate((X_tra, image_tra_pre.reshape(-1, 3), image_tra_fea.reshape(-1, 3)), axis=1)
 
         temp_all_idx = numpy.arange(0, Y_tra.shape[0])  # select only a subset of training set for training
-        temp_idx_select_pos = numpy.random.choice(temp_all_idx[Y_tra > 0], size=10000, replace=True)
-        temp_idx_select_neg = numpy.random.choice(temp_all_idx[Y_tra < 1], size=10000, replace=True)
+        temp_idx_select_pos = numpy.random.choice(temp_all_idx[Y_tra > 0], size=n_sample, replace=True)
+        temp_idx_select_neg = numpy.random.choice(temp_all_idx[Y_tra < 1], size=n_sample, replace=True)
         idx_select_1 = numpy.sort(numpy.concatenate((temp_idx_select_pos, temp_idx_select_neg)))
 
-        clf_1 = RandomForestClassifier(n_estimators=20, min_samples_leaf=200, max_depth=None, max_features='auto')
+        clf_1 = RandomForestClassifier(n_estimators=n_tree, min_samples_leaf=200, max_depth=None, max_features='auto')
         clf_1.fit(X_tra_1[idx_select_1, :], Y_tra[idx_select_1])
 
         X_tes_1 = numpy.concatenate((X_tes, image_tes_pre.reshape(-1, 3), image_tes_fea.reshape(-1, 3)), axis=1)
@@ -73,10 +90,35 @@ def main():
         metric_auc = roc_auc_score(y_true=Y_tra, y_score=score_tra_pred_1)
         print('  AUC = {:.3f}\n'.format(metric_auc))
 
-        # print('  predicting test set.', end='')
-        # temp_score_tes_pred = clf_1.predict_proba(X_tes_1)[:, 1]
-        # metric_auc = roc_auc_score(y_true=Y_tes, y_score=temp_score_tes_pred)
-        # print('  AUC = {:.3f}'.format(metric_auc))
+        print('  ================')
+        print('  test set.', end='')
+        temp_score_tes_pred = clf_1.predict_proba(X_tes_1)[:, 1]
+        metric_auc = roc_auc_score(y_true=Y_tes, y_score=temp_score_tes_pred)
+        print('  AUC = {:.3f}\n'.format(metric_auc))
+        results_1['fold {:01d}'.format(i_fold + 1)] = metric_auc
+
+        if i_fold == demo_slide['fold']:
+            temp_ind_tes = demo_slide['n']  # demo
+            demo_score_mat = temp_score_tes_pred.reshape((n_image_tes,) + image_size)[temp_ind_tes, :, :]
+            demo_seg_pred = numpy.zeros_like(demo_score_mat)
+            demo_seg_pred[demo_score_mat >= 0.5] = 1
+            demo_seg = image_dataset_tes[temp_ind_tes]['seg'][:, :, 0]
+            demo_metric = roc_auc_score(y_true=demo_seg.flatten(), y_score=demo_score_mat.flatten())
+            plt.figure(figsize=(3 * window_width, 1 * window_width))
+            plt.subplot(1, 3, 1)
+            plt.imshow(image_dataset_tes[temp_ind_tes]['image'][:, :, :])
+            plt.title('image')
+            plt.axis('off')
+            plt.subplot(1, 3, 2)
+            plt.imshow(demo_seg, cmap='gray')
+            plt.title('ground truth')
+            plt.axis('off')
+            plt.subplot(1, 3, 3)
+            plt.imshow(demo_seg_pred, cmap='gray')
+            plt.title('prdiction AUC = {:.3f}'.format(demo_metric))
+            plt.axis('off')
+            plt.tight_layout()
+            plt.savefig('./result/demo_phase1.png')
 
 
         # -----------------------------------------------------------------
@@ -90,11 +132,11 @@ def main():
         X_tra_2 = numpy.concatenate((X_tra_1, context_tra_2.reshape(-1, 8), imgfeature_tra_2.reshape(-1, 8), superscore_tra_2.reshape(-1, 2)), axis=1)
 
         temp_all_idx = numpy.arange(0, Y_tra.shape[0])  # select only a subset of training set for training
-        temp_idx_select_pos = numpy.random.choice(temp_all_idx[Y_tra > 0], size=10000, replace=True)
-        temp_idx_select_neg = numpy.random.choice(temp_all_idx[Y_tra < 1], size=10000, replace=True)
+        temp_idx_select_pos = numpy.random.choice(temp_all_idx[Y_tra > 0], size=n_sample, replace=True)
+        temp_idx_select_neg = numpy.random.choice(temp_all_idx[Y_tra < 1], size=n_sample, replace=True)
         idx_select_2 = numpy.sort(numpy.concatenate((temp_idx_select_pos, temp_idx_select_neg)))
 
-        clf_2 = RandomForestClassifier(n_estimators=20, min_samples_leaf=200)
+        clf_2 = RandomForestClassifier(n_estimators=n_tree, min_samples_leaf=200)
         clf_2.fit(X_tra_2[idx_select_2, :], Y_tra[idx_select_2])
 
         score_tes_pred_mat_1 = clf_1.predict_proba(X_tes_1)[:, 1].reshape((n_image_tes,) + image_size)
@@ -108,10 +150,35 @@ def main():
         metric_auc = roc_auc_score(y_true=Y_tra, y_score=score_tra_pred_2)
         print('  AUC = {:.3f}\n'.format(metric_auc))
 
-        # print('  test set.', end='')
-        # temp_score_tes_pred = clf_2.predict_proba(X_tes_2)[:, 1]
-        # metric_auc = roc_auc_score(y_true=Y_tes, y_score=temp_score_tes_pred)
-        # print('  AUC = {:.3f}'.format(metric_auc))
+        print('  ================')
+        print('  test set.', end='')
+        temp_score_tes_pred = clf_2.predict_proba(X_tes_2)[:, 1]
+        metric_auc = roc_auc_score(y_true=Y_tes, y_score=temp_score_tes_pred)
+        print('  AUC = {:.3f}\n'.format(metric_auc))
+        results_2['fold {:01d}'.format(i_fold + 1)] = metric_auc
+
+        if i_fold == demo_slide['fold']:
+            temp_ind_tes = demo_slide['n']  # demo
+            demo_score_mat = temp_score_tes_pred.reshape((n_image_tes,) + image_size)[temp_ind_tes, :, :]
+            demo_seg_pred = numpy.zeros_like(demo_score_mat)
+            demo_seg_pred[demo_score_mat >= 0.5] = 1
+            demo_seg = image_dataset_tes[temp_ind_tes]['seg'][:, :, 0]
+            demo_metric = roc_auc_score(y_true=demo_seg.flatten(), y_score=demo_score_mat.flatten())
+            plt.figure(figsize=(3 * window_width, 1 * window_width))
+            plt.subplot(1, 3, 1)
+            plt.imshow(image_dataset_tes[temp_ind_tes]['image'][:, :, :])
+            plt.title('image')
+            plt.axis('off')
+            plt.subplot(1, 3, 2)
+            plt.imshow(demo_seg, cmap='gray')
+            plt.title('ground truth')
+            plt.axis('off')
+            plt.subplot(1, 3, 3)
+            plt.imshow(demo_seg_pred, cmap='gray')
+            plt.title('prdiction AUC = {:.3f}'.format(demo_metric))
+            plt.axis('off')
+            plt.tight_layout()
+            plt.savefig('./result/demo_phase2.png')
 
 
         # -----------------------------------------------------------------
@@ -143,11 +210,35 @@ def main():
         metric_auc = roc_auc_score(y_true=Y_tra, y_score=temp_score_tra_pred)
         print('  AUC = {:.3f}\n'.format(metric_auc))
 
-        print('================')
+        print('  ================')
         print('  test set.', end='')
         temp_score_tes_pred = clf_3.predict_proba(X_tes_3)[:, 1]
         metric_auc = roc_auc_score(y_true=Y_tes, y_score=temp_score_tes_pred)
-        print('  AUC = {:.3f}\n\n'.format(metric_auc))
+        print('  AUC = {:.3f}\n'.format(metric_auc))
+        results_3['fold {:01d}'.format(i_fold + 1)] = metric_auc
+
+        if i_fold == demo_slide['fold']:
+            temp_ind_tes = demo_slide['n']  # demo
+            demo_score_mat = temp_score_tes_pred.reshape((n_image_tes,) + image_size)[temp_ind_tes, :, :]
+            demo_seg_pred = numpy.zeros_like(demo_score_mat)
+            demo_seg_pred[demo_score_mat >= 0.5] = 1
+            demo_seg = image_dataset_tes[temp_ind_tes]['seg'][:, :, 0]
+            demo_metric = roc_auc_score(y_true=demo_seg.flatten(), y_score=demo_score_mat.flatten())
+            plt.figure(figsize=(3 * window_width, 1 * window_width))
+            plt.subplot(1, 3, 1)
+            plt.imshow(image_dataset_tes[temp_ind_tes]['image'][:, :, :])
+            plt.title('image')
+            plt.axis('off')
+            plt.subplot(1, 3, 2)
+            plt.imshow(demo_seg, cmap='gray')
+            plt.title('ground truth')
+            plt.axis('off')
+            plt.subplot(1, 3, 3)
+            plt.imshow(demo_seg_pred, cmap='gray')
+            plt.title('prdiction AUC = {:.3f}'.format(demo_metric))
+            plt.axis('off')
+            plt.tight_layout()
+            plt.savefig('./result/demo_phase3.png')
 
 
         # -----------------------------------------------------------------
@@ -218,48 +309,30 @@ def main():
         # print('pause')
 
 
-        '''
-        temp_ind_tes = 2  # demo
-        temp_X_tes = image_dataset_tes[temp_ind_tes]['image'].reshape((-1, 3))
-        image_size = image_dataset_tra[temp_ind_tes]['image_size']
+    index_name = 'phase 1'
+    df_1 = pandas.DataFrame(results_1, index=[index_name, ])
+    if index_name in df.index:
+        df.update(df_1)
+    else:
+        df = df.append(df_1)
 
-        temp_score_tes_pred = clf.predict_proba(temp_X_tes)[:, 1]
-        temp_Y_tes_pred = numpy.zeros_like(temp_score_tes_pred)
-        temp_Y_tes_pred[temp_score_tes_pred >= 0.5] = 1
+    index_name = 'phase 2'
+    df_2 = pandas.DataFrame(results_2, index=[index_name, ])
+    if index_name in df.index:
+        df.update(df_2)
+    else:
+        df = df.append(df_2)
 
-        temp_seg_pred = temp_Y_tes_pred.reshape(image_size)
+    index_name = 'phase 3'
+    df_3 = pandas.DataFrame(results_3, index=[index_name, ])
+    if index_name in df.index:
+        df.update(df_3)
+    else:
+        df = df.append(df_3)
 
-        plt.figure(figsize=(3 * window_width, 1 * window_width))
-        plt.subplot(1, 3, 1)
-        plt.imshow(image_dataset_tes[temp_ind_tes]['image'][:, :, 0], cmap='gray')
-        plt.subplot(1, 3, 2)
-        plt.imshow(image_dataset_tes[temp_ind_tes]['seg'][:, :, 0], cmap='gray')
-        plt.subplot(1, 3, 3)
-        plt.imshow(temp_seg_pred, cmap='gray')
-        plt.show()
-        '''
+    print(df)
 
-        # -----------------------------------------------------------------
-        # print('phase I training with more features.')
-        #
-        # image_tra = image_dataset_tra.dataset['image']
-        # image_tra_aug = add_image_feature(image_set=image_tra)
-        # image_tra_aug = numpy.concatenate((image_tra, image_tra_aug), axis=3)
-        # n_feature = image_tra_aug.shape[3]
-        # X_tra = image_tra_aug.reshape((-1, n_feature))
-        #
-        # clf = RandomForestClassifier(n_estimators=20, min_samples_leaf=10)
-        # clf.fit(X_tra[idx_select, :], Y_tra[idx_select])
-        #
-        # image_tes = image_dataset_tes.dataset['image']
-        # image_tes_aug = add_image_feature(image_set=image_tes)
-        # image_tes_aug = numpy.concatenate((image_tes, image_tes_aug), axis=3)
-        # X_tes = image_tes_aug.reshape((-1, n_feature))
-        #
-        # print('  predicting.')
-        # score_tes_pred = clf.predict_proba(X_tes)[:, 1]
-        # metric_auc = roc_auc_score(y_true=Y_tes, y_score=score_tes_pred)
-        # print('  AUC = {:.3f}\n'.format(metric_auc))
+    df.to_csv('./result/results.csv')
 
 
 if __name__ == '__main__':
